@@ -2,3 +2,4 @@
 text_classification/
 *checkpoint/
 *model*
+data/
