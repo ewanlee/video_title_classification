@@ -1,0 +1,4 @@
+*.pyc
+text_classification/
+*checkpoint/
+*model*
