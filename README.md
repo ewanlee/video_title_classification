@@ -10,18 +10,10 @@ I have used three models:
 - TextCNN
 - TextRNN
 - TextRCNN
+- Hierarchical Attention
 
-Model define files are as follows:
-- textcnn.py
-- textrnn.py
-- textrcnn.py
-
-Model training files are as follows:
-- train_cnn.py
-- train_rnn.py
-- train_rcnn.py
-
+train\_\*.py are model training files and model\_name.py are model define files
 You can view more details on comments in source code.
 
-For now, I get the best multi-class classification accuracy by use TextCNN. The
+For now, I get the best multi-class classification accuracy by use TextCNN (0.7). The
 hyperparameters have written in code.
