@@ -9,6 +9,8 @@ from textcnn import TextCNN
 from gensim.models import KeyedVectors
 import os
 import numpy as np
+import codecs
+from utils import unmatched_sample
 
 # configuration
 FLAGS = tf.app.flags.FLAGS
@@ -44,6 +46,9 @@ def label2index(labels):
     for label in tqdm(set(labels)):
         if label not in classes_dict.keys():
             classes_dict[label] = len(classes_dict)
+    # save label-index map
+    with open('data/label_index.map', 'wb') as f:
+        pickle.dump(classes_dict, f)
     classes = [classes_dict[label] for label in labels]
     return classes
 
@@ -133,9 +138,12 @@ def main(_):
 
             # validation
             if epoch % FLAGS.validate_every == 0:
-                eval_loss, eval_acc = do_eval(sess, textcnn, X_val, y_val, batch_size)
-                print("Epoch {} Validation Loss: {}\tValidation Accuracy: {}".format(
-                    epoch, eval_loss, eval_acc))
+                eval_loss, eval_acc = do_eval(
+                        sess, textcnn, X_val, y_val, batch_size)
+                unmatched_sample(sess, textcnn, X_val, y_val, batch_size)
+
+                print("Epoch {} Validation Loss: {}\tValidation Accuracy: {}".\
+                        format(epoch, eval_loss, eval_acc))
                 if eval_acc > best_val_acc:
                     best_val_acc = eval_acc
                     # save model to checkpoint
@@ -146,6 +154,8 @@ def main(_):
 
         # report result
         test_loss, test_acc = do_eval(sess, textcnn, X_val, y_val, batch_size)
+        unmatched_sample(sess, textcnn, X_val, y_val, batch_size)
+
 
 def assign_pretrained_word_embedding(
         sess, vocab, vocab_size, textCNN,
