@@ -11,6 +11,8 @@ import os
 import numpy as np
 import codecs
 from utils import unmatched_sample
+import shutil
+from sklearn.utils import shuffle
 
 # configuration
 FLAGS = tf.app.flags.FLAGS
@@ -29,6 +31,7 @@ tf.app.flags.DEFINE_integer("validate_every", 1, "Validate every validate_every 
 tf.app.flags.DEFINE_boolean("use_embedding", True, "whether to use embedding or not.")
 tf.app.flags.DEFINE_integer("num_filters", 256, "number of filters")
 tf.app.flags.DEFINE_boolean("multi_label_flag", False, "use multi label or single label.")
+tf.app.flags.DEFINE_boolean("just_train", False, "whether use all data to train or not.")
 filter_sizes=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 def label2index(labels):
@@ -53,9 +56,12 @@ def label2index(labels):
     return classes
 
 
-def train_test_loader():
+def train_test_loader(just_train=False):
     """
     load data file and split to train set and validation set
+
+    Inputs:
+    - just_train (boolean): if true, all data use to train
 
     Outputs:
     - X_train, y_train, X_val, y_val (numpy.array)
@@ -67,14 +73,19 @@ def train_test_loader():
         y = label2index(pickle.load(f))
 
     n_classes = max(y) + 1
-    X_train, y_train, X_val, y_val = train_test_split(
-            X, y, test_size=0.2, random_state=42)
 
-    return X_train, y_train, X_val, y_val, n_classes
+    if not just_train:
+        X_train, X_val, y_train, y_val = train_test_split(
+                X, y, test_size=0.2, random_state=42)
+        return X_train, X_val, y_train, y_val, n_classes
+    else:
+        X, y = shuffle(X, y, random_state=42)
+        return X, None, y, None, n_classes
+
 
 
 def main(_):
-    X_train, X_val, y_train, y_val, n_classes = train_test_loader()
+    X_train, X_val, y_train, y_val, n_classes = train_test_loader(FLAGS.just_train)
     with open('data/vocab.dic', 'rb') as f:
         vocab = pickle.load(f)
     vocab_size = len(vocab) + 1
@@ -82,7 +93,9 @@ def main(_):
 
     # padding sentences
     X_train = pad_sequences(X_train, maxlen=FLAGS.sentence_len, value=float(vocab_size - 1))
-    X_val = pad_sequences(X_val, maxlen=FLAGS.sentence_len, value=float(vocab_size - 1))
+    if not FLAGS.just_train:
+        X_val = pad_sequences(
+                X_val, maxlen=FLAGS.sentence_len, value=float(vocab_size - 1))
     # convert label to one-hot encode
     # to_categorical(y_train, n_classes)
     # to_categorical(y_val, n_classes)
@@ -112,7 +125,14 @@ def main(_):
         number_of_training_data = len(X_train)
         batch_size = FLAGS.batch_size
         best_val_acc = 0.0
-        for epoch in range(curr_epoch, FLAGS.num_epochs):
+
+        total_epochs = 0
+        if not FLAGS.just_train:
+            total_epochs = FLAGS.num_epochs
+        else:
+            total_epochs = 20
+
+        for epoch in range(curr_epoch, total_epochs):
             loss, acc, counter = .0, .0, 0
             for start, end in zip(
                     range(0, number_of_training_data, batch_size),
@@ -137,7 +157,7 @@ def main(_):
             sess.run(textcnn.epoch_increment)
 
             # validation
-            if epoch % FLAGS.validate_every == 0:
+            if not FLAGS.just_train and epoch % FLAGS.validate_every == 0:
                 eval_loss, eval_acc = do_eval(
                         sess, textcnn, X_val, y_val, batch_size)
                 unmatched_sample(sess, textcnn, X_val, y_val, batch_size)
@@ -145,16 +165,22 @@ def main(_):
                 print("Epoch {} Validation Loss: {}\tValidation Accuracy: {}".\
                         format(epoch, eval_loss, eval_acc))
                 if eval_acc > best_val_acc:
+                    if os.path.exists(FLAGS.ckpt_dir):
+                        shutil.rmtree(FLAGS.ckpt_dir)
                     best_val_acc = eval_acc
                     # save model to checkpoint
                     save_path = FLAGS.ckpt_dir + "model.ckpt"
                     saver.save(sess, save_path, global_step=epoch)
                 else:
-                    saver.restore(sess, tf.train.latest_checkpoint(FLAGS.ckpt_dir))
+                    break
 
         # report result
-        test_loss, test_acc = do_eval(sess, textcnn, X_val, y_val, batch_size)
-        unmatched_sample(sess, textcnn, X_val, y_val, batch_size)
+        if not FLAGS.just_train:
+            test_loss, test_acc = do_eval(sess, textcnn, X_val, y_val, batch_size)
+            unmatched_sample(sess, textcnn, X_val, y_val, batch_size)
+        else:
+            save_path = FLAGS.ckpt_dir + "model.ckpt"
+            saver.save(sess, save_path, global_step=20)
 
 
 def assign_pretrained_word_embedding(

@@ -5,12 +5,14 @@ from collections import OrderedDict
 from tqdm import tqdm
 import pickle
 import os
+import copy
 
 def load_data():
     """
     load sentences and corresponding labels from data file
     """
-    sentences = []
+    labeled_sentences = []
+    unlabeled_sentences = []
     labels = []
     extract_label = ['0', '150000','122000','139000','125000','129000','115000','141000','190000']
     print('load data ...')
@@ -18,10 +20,13 @@ def load_data():
         for line in tqdm(f.readlines()):
             temp_list = line.decode('utf-8').strip().split('\t')
             if temp_list[2] not in extract_label:
-                sentences.append(temp_list[-1])
+                labeled_sentences.append(temp_list[-1])
                 labels.append(temp_list[2])
+            else:
+                unlabeled_sentences.append(temp_list[-1])
 
-    return sentences, labels
+
+    return labeled_sentences, labels, unlabeled_sentences
 
 
 def remove_emoji(sentences):
@@ -97,12 +102,17 @@ def length_distribution(cleaned_sentences):
     return distri
 
 
-def vocab_build(cleaned_sentences, saved_fn='data/vocab.dic'):
+def vocab_build(cleaned_labeled_sentences,
+        cleaned_unlabeled_sentences,
+        saved_fn='data/vocab.dic'):
     """
     build the vocabulary list
 
     Inputs:
-    - cleaned_sentences (list): each element is the words of sentence
+    - cleaned_labeled_sentences (list):
+        each element is the words of labeled sentence
+    - cleaned_unlabeled_sentences (list):
+        each element is the word of unlabeled sentence
     - saved_fn (string): the file name of saved vocabulary dictionary
 
     Outputs:
@@ -113,6 +123,10 @@ def vocab_build(cleaned_sentences, saved_fn='data/vocab.dic'):
             return pickle.load(f)
 
     vocab = OrderedDict()
+
+    cleaned_sentences = copy.copy(cleaned_labeled_sentences)
+    cleaned_sentences.extend(cleaned_unlabeled_sentences)
+
     print('vocabulary words build ...')
     temp_list = []
     for words in tqdm(cleaned_sentences):
@@ -120,8 +134,7 @@ def vocab_build(cleaned_sentences, saved_fn='data/vocab.dic'):
     vocab_set = OrderedSet(temp_list)
     print("vocabulary words' index build ...")
     for word in tqdm(list(vocab_set)):
-        if word not in vocab.keys():
-            vocab[word] = len(vocab)
+        vocab[word] = len(vocab)
 
     with open(saved_fn, 'wb') as f:
         pickle.dump(vocab, f)
@@ -149,21 +162,33 @@ def word2index(cleaned_sentences, vocab):
 
 
 if __name__ == '__main__':
-    sentences, labels = load_data()
-    cutted_sentences = cut(remove_emoji(sentences))
-    cleaned_sentences = remove_stop_words(cutted_sentences)
+    labeled_sentences, labels, unlabeled_sentences = load_data()
+
+    cutted_labeled_sentences = cut(remove_emoji(labeled_sentences))
+    cutted_unlabeled_sentences = cut(remove_emoji(unlabeled_sentences))
+
+    cleaned_labeled_sentences = remove_stop_words(cutted_labeled_sentences)
+    cleaned_unlabeled_sentences = remove_stop_words(cutted_unlabeled_sentences)
 
     print('start build vocabulary list ...')
-    vocab = vocab_build(cleaned_sentences)
+    vocab = vocab_build(
+            cleaned_labeled_sentences, cleaned_unlabeled_sentences)
 
     print('vocabulary list size: {}'.format(len(vocab)))
 
     print('modeling sentences ...')
-    modeled_sentences = word2index(cleaned_sentences, vocab)
-    print('the first 10 modeled sentences:')
-    print(modeled_sentences[:10])
+    modeled_labeled_sentences = word2index(
+            cleaned_labeled_sentences, vocab)
+    modeled_unlabeled_sentences = word2index(
+            cleaned_unlabeled_sentences, vocab)
+    print('the first 10 modeled labeled sentences:')
+    print(modeled_labeled_sentences[:10])
+    print('the first 10 modeled unlabeled sentences:')
+    print(modeled_unlabeled_sentences[:10])
 
     with open('data/X.data', 'wb') as f:
-        pickle.dump(modeled_sentences, f)
+        pickle.dump(modeled_labeled_sentences, f)
+    with open('data/X_unlabeled.data', 'wb') as f:
+        pickle.dump(modeled_unlabeled_sentences, f)
     with open('data/y.data', 'wb') as f:
         pickle.dump(labels, f)
