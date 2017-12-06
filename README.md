@@ -411,3 +411,10 @@ curr_loss, curr_acc, _ = sess.run(
 预测的流程和训练差不多，只不过不再进行多次对数据集的遍历，只进行对未标记数据进行一次遍历，拿到结果之后，由于算法输出的结果是[0, 32]这样一个序号，我们需要转化为中文标签。
 
 具体参照代码，不再赘述。
+
+
+# 引用
+
+【1】https://zhuanlan.zhihu.com/p/25928551
+
+【2】https://github.com/brightmart/text_classification
